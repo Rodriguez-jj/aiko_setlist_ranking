@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aiko ライブ演奏曲ランキング</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700;900&family=Playfair+Display:ital,wght@0,700;1,400&display=swap');
+
+  :root {
+    --bg: #0d0a12;
+    --surface: #17121f;
+    --border: #2e2640;
+    --accent1: #e87ca8;
+    --accent2: #b96ddd;
+    --text: #f0e8f8;
+    --text-sub: #9e8fb0;
+    --gold: #f5c842;
+    --silver: #c0bcd0;
+    --bronze: #d4895a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px 0;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1a0e2e 0%, #0d1a2a 50%, #1a0e2e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 20px 28px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -40px; left: 50%; transform: translateX(-50%);
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(232,124,168,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-label { font-size: 11px; letter-spacing: 4px; color: var(--accent1); text-transform: uppercase; margin-bottom: 10px; }
+  .header h1 { font-family: 'Playfair Display', serif; font-size: clamp(22px, 5vw, 36px); font-weight: 700; line-height: 1.2; color: var(--text); margin-bottom: 8px; }
+  .header h1 span { font-style: italic; color: var(--accent1); }
+  .header-sub { font-size: 12px; color: var(--text-sub); letter-spacing: 1px; }
+
+  .stats-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 16px 16px 0; }
+  .stat-pill { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 16px; text-align: center; }
+  .stat-pill .num { font-size: 20px; font-weight: 900; color: var(--accent1); }
+  .stat-pill .lbl { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
+
+  .section-label {
+    max-width: 720px; margin: 20px auto 0; padding: 0 12px;
+    font-size: 10px; letter-spacing: 3px; color: var(--text-sub); text-transform: uppercase;
+  }
+
+  .controls {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 8px 16px 0;
+  }
+
+  .filter-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-sub);
+    padding: 7px 14px; border-radius: 20px; font-size: 12px;
+    font-family: 'Noto Sans JP', sans-serif; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .filter-btn:hover { border-color: var(--accent1); color: var(--accent1); }
+  .filter-btn.active { background: var(--accent1); border-color: var(--accent1); color: #fff; font-weight: 700; }
+
+  /* ライブボタン：カラーはJSで管理するためここでは基本スタイルのみ */
+  .live-btn { transition: all 0.2s; }
+
+  .divider { max-width: 720px; margin: 16px auto 0; padding: 0 12px; border: none; border-top: 1px solid var(--border); }
+
+  .mode-indicator {
+    max-width: 720px; margin: 12px auto 0; padding: 0 12px;
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-sub);
+    min-height: 22px; flex-wrap: wrap;
+  }
+  .mode-tag {
+    background: rgba(232,124,168,0.15); border: 1px solid rgba(232,124,168,0.3);
+    color: var(--accent1); padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  }
+
+  .ranking-list {
+    max-width: 720px; margin: 12px auto 0; padding: 0 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+
+  .song-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; transition: all 0.2s; cursor: default;
+  }
+  .song-row:hover { border-color: var(--accent1); transform: translateX(3px); background: #1e1730; }
+  .song-row.rank-1 { border-left: 3px solid var(--gold); }
+  .song-row.rank-2 { border-left: 3px solid var(--silver); }
+  .song-row.rank-3 { border-left: 3px solid var(--bronze); }
+  .song-row.hidden { display: none; }
+
+  .rank-num { width: 28px; text-align: center; font-size: 11px; font-weight: 700; color: var(--text-sub); flex-shrink: 0; }
+  .rank-num.r1 { color: var(--gold); font-size: 14px; }
+  .rank-num.r2 { color: var(--silver); font-size: 13px; }
+  .rank-num.r3 { color: var(--bronze); font-size: 12px; }
+
+  .medal { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+
+  .song-info { flex: 1; min-width: 0; }
+  .song-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-dots { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: opacity 0.2s; }
+  .dot.llr10-1   { background: #e87ca8; }
+  .dot.llr10-2   { background: #f7a8c4; }
+  .dot.llp249-1  { background: #7ec8e3; }
+  .dot.llp249-2  { background: #a8dff0; }
+  .dot.countdown { background: #b96ddd; }
+  .dot.llp25     { background: #f5c842; }
+  .dot.inactive  { background: transparent !important; border: 1px solid #3a2f50; }
+
+  .bar-wrap { width: 100px; flex-shrink: 0; }
+  .bar-bg { background: rgba(255,255,255,0.07); border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent2), var(--accent1)); transition: width 0.3s ease; }
+
+  .count-badge {
+    background: rgba(232,124,168,0.15); border: 1px solid rgba(232,124,168,0.3);
+    color: var(--accent1); font-size: 13px; font-weight: 900;
+    padding: 4px 10px; border-radius: 20px; flex-shrink: 0; min-width: 44px; text-align: center;
+  }
+  .count-badge.c-max { background: rgba(245,200,66,0.2); border-color: var(--gold); color: var(--gold); }
+  .count-badge.c-high { background: rgba(185,109,221,0.2); border-color: var(--accent2); color: var(--accent2); }
+
+  .legend {
+    max-width: 720px; margin: 20px auto 0; padding: 0 12px;
+    display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-sub); cursor: pointer; transition: opacity 0.2s; }
+  .legend-item:hover { opacity: 0.7; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .tooltip {
+    position: fixed; background: #2a1e40; border: 1px solid var(--accent1);
+    border-radius: 10px; padding: 10px 14px; font-size: 12px;
+    pointer-events: none; z-index: 999; max-width: 220px; display: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .tooltip .tt-title { font-weight: 700; color: var(--accent1); margin-bottom: 6px; }
+  .tooltip .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--text-sub); }
+  .tooltip .tt-row.hit { color: var(--text); }
+  .tooltip .tt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-label">My Live History</div>
+  <h1>aiko ライブ<span>演奏曲</span>ランキング</h1>
+  <div class="header-sub">6公演 参戦記録 / 2024–2026</div>
+</div>
+
+<div class="stats-row" id="statsRow">
+  <div class="stat-pill"><div class="num">6</div><div class="lbl">参戦ライブ数</div></div>
+  <div class="stat-pill"><div class="num" id="statSongs">—</div><div class="lbl">表示中の曲数</div></div>
+  <div class="stat-pill"><div class="num" id="statSelected">6</div><div class="lbl">選択中の公演数</div></div>
+</div>
+
+<!-- ライブ絞り込み -->
+<div class="section-label" style="margin-top:20px;">▸ ライブで絞り込む（複数選択可）</div>
+<div class="controls" id="liveControls">
+  <button class="filter-btn live-btn" data-show="llr10-1">LLR10 10/3</button>
+  <button class="filter-btn live-btn" data-show="llr10-2">LLR10 2/4</button>
+  <button class="filter-btn live-btn" data-show="llp249-1">LLP24.9 12/6</button>
+  <button class="filter-btn live-btn" data-show="llp249-2">LLP24.9 12/7</button>
+  <button class="filter-btn live-btn" data-show="countdown">COUNTDOWN 12/31</button>
+  <button class="filter-btn live-btn" data-show="llp25">LLP25 6/6</button>
+</div>
+
+<hr class="divider">
+
+<!-- 演奏回数フィルター（動的に生成） -->
+<div class="section-label">▸ 演奏回数で絞り込む</div>
+<div class="controls" id="countControls"></div>
+
+<!-- モード表示 -->
+<div class="mode-indicator" id="modeIndicator"></div>
+
+<div class="ranking-list" id="rankingList"></div>
+
+<div class="legend">
+  <div class="legend-item" data-show="llr10-1"><div class="legend-dot" style="background:#e87ca8"></div>LLR10 10/3</div>
+  <div class="legend-item" data-show="llr10-2"><div class="legend-dot" style="background:#f7a8c4"></div>LLR10 2/4</div>
+  <div class="legend-item" data-show="llp249-1"><div class="legend-dot" style="background:#7ec8e3"></div>LLP24.9 12/6</div>
+  <div class="legend-item" data-show="llp249-2"><div class="legend-dot" style="background:#a8dff0"></div>LLP24.9 12/7</div>
+  <div class="legend-item" data-show="countdown"><div class="legend-dot" style="background:#b96ddd"></div>COUNTDOWN 12/31</div>
+  <div class="legend-item" data-show="llp25"><div class="legend-dot" style="background:#f5c842"></div>LLP25 6/6</div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const SHOWS = [
+  { key: 'llr10-1',   label: 'LLR10 10/3',    color: '#e87ca8' },
+  { key: 'llr10-2',   label: 'LLR10 2/4',      color: '#f7a8c4' },
+  { key: 'llp249-1',  label: 'LLP24.9 12/6',   color: '#7ec8e3' },
+  { key: 'llp249-2',  label: 'LLP24.9 12/7',   color: '#a8dff0' },
+  { key: 'countdown', label: 'COUNTDOWN 12/31', color: '#b96ddd' },
+  { key: 'llp25',     label: 'LLP25 6/6',       color: '#f5c842' },
+];
+
+const RAW = {
+  'llr10-1':   ['相思相愛','アンコール','運命','シャワーとコンセント','あたしのせい','鮮やかな街','願い事日記','冷たい嘘','あられ','ガラクタ','愛は勝手','星の降る日に','まさか夢','blow','こんぺいとう','キスする前に','鏡','skirt','blue','Power of Love','好きにさせて','帽子と水着と水平線','beat','ストロー','be master of life'],
+  'llr10-2':   ['ガラクタ','アンコール','ライン','傷跡','あたしのせい','鮮やかな街','願い事日記','シネマ','blue','問題集','サイダー','食べた愛','星の降る日に','まさか夢','プラマイ','skirt','恋愛ジャンキー','君の隣','相思相愛','なんて一日','好きにさせて','トンネル','milk','愛の病','帽子と水着と水平線','be master of life','ボーイフレンド','カプセル','キラキラ'],
+  'llp249-1':  ['Aka','skirt','あたしの向こう','磁石','be master of life','深海冷蔵庫','号泣中','列車','青空','シネマ','ひまわりになったら','ココア','向かいあわせ','ヒカリ','アップルパイ','58cm','遊園地','二人','カプセル','恋の涙','果てしない二人','ストロー','milk','Loveletter','ボーイフレンド'],
+  'llp249-2':  ['明日の歌','ねがう夜','荒れた唇は恋を失くす','ぶどうじゅーす','蝶々結び','秘密','宇宙で息をして','列車','skirt','58cm','その目に映して','カプセル','向かいあわせ','ヒカリ','アップルパイ','キラキラ','アスパラ','be master of life','磁石','シネマ','赤いランプ','ジェット','愛の病','beat','ドライブモード','シアワセ'],
+  'countdown': ['燃えた涙 月とライター','skirt','ねがう夜','相思相愛','クラスメイト','列車','大切な人','自転車','果てしない二人','カプセル','You & Me both','くちびる','オレンジな満月','その目に映して','荒れた唇は恋を失くす','58cm','赤いランプ','未来を拾いに','アップルパイ','メロンソーダ','ストロー','キラキラ','ボーイフレンド','愛の病','二人','be master of life','Loveletter','遊園地','シアワセ'],
+  'llp25':     ['星の降る日に','うん。','れんげ畑','Smooch!','桃色','透明ドロップ','花風','skirt','果てしない二人','三国駅','恋人','雲は白リンゴは赤','あかときリロード','大切だった人','消しゴム','予告','ストロー','キラキラ','相思相愛','Cry High Fly','青空','KissHug','オレンジな満月','二人','Loveletter','ボーイフレンド','be master of life','未来を拾いに','シアワセ'],
+};
+
+// 全曲リストを生成（全公演のユニーク曲 × 全公演での出演情報）
+const allSongs = {};
+for (const [showKey, songs] of Object.entries(RAW)) {
+  const unique = [...new Set(songs)];
+  for (const song of unique) {
+    if (!allSongs[song]) allSongs[song] = new Set();
+    allSongs[song].add(showKey);
+  }
+}
+
+// 状態
+let activeLives = new Set(SHOWS.map(s => s.key)); // 初期は全選択
+let activeCountFilter = 'all';
+
+// DOMキャッシュ
+const rankingList = document.getElementById('rankingList');
+const tooltip = document.getElementById('tooltip');
+
+// 行を事前生成
+const songEntries = Object.entries(allSongs).map(([name, showsSet]) => ({
+  name,
+  allShows: showsSet, // 全公演での出演セット
+}));
+
+songEntries.forEach(({ name, allShows }) => {
+  const row = document.createElement('div');
+  row.className = 'song-row';
+  row.dataset.name = name;
+
+  const dotsHtml = SHOWS.map(sh => {
+    const inShow = allShows.has(sh.key);
+    return `<div class="dot ${inShow ? sh.key : 'inactive'}" data-show="${sh.key}"></div>`;
+  }).join('');
+
+  row.innerHTML = `
+    <div class="rank-num" data-rank></div>
+    <div class="medal" data-medal></div>
+    <div class="song-info">
+      <div class="song-name">${name}</div>
+      <div class="song-dots">${dotsHtml}</div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-bg"><div class="bar-fill" data-bar></div></div>
+    </div>
+    <div class="count-badge" data-badge></div>
+  `;
+
+  // Tooltip
+  row.addEventListener('mouseenter', () => {
+    const lines = SHOWS.map(sh => {
+      const hit = allShows.has(sh.key);
+      const inScope = activeLives.has(sh.key);
+      const active = hit && inScope;
+      return `<div class="tt-row ${active ? 'hit' : ''}">
+        <div class="tt-dot" style="background:${active ? sh.color : '#3a2f50'}"></div>
+        ${sh.label}
+      </div>`;
+    }).join('');
+    tooltip.innerHTML = `<div class="tt-title">「${name}」</div>${lines}`;
+    tooltip.style.display = 'block';
+  });
+  row.addEventListener('mousemove', (e) => {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+  });
+  row.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+  rankingList.appendChild(row);
+});
+
+// ========== メインレンダリング ==========
+function applyFilters() {
+  const rows = [...rankingList.querySelectorAll('.song-row')];
+
+  // 選択ライブ内でのカウントを計算
+  const scored = rows.map(row => {
+    const name = row.dataset.name;
+    const allShows = allSongs[name];
+    // 選択ライブとの積集合
+    const filteredCount = [...activeLives].filter(lk => allShows.has(lk)).length;
+    return { row, name, filteredCount };
+  });
+
+  // filteredCount > 0 のものだけ対象、降順ソート
+  const visible = scored
+    .filter(s => s.filteredCount > 0)
+    .sort((a, b) => b.filteredCount - a.filteredCount || a.name.localeCompare(b.name, 'ja'));
+
+  const maxCount = visible.length > 0 ? visible[0].filteredCount : 1;
+
+  // 演奏回数の種類を収集（countフィルタボタン更新用）
+  const countSet = new Set(visible.map(s => s.filteredCount));
+  rebuildCountButtons([...countSet].sort((a, b) => b - a));
+
+  // countフィルター適用
+  const finalVisible = activeCountFilter === 'all'
+    ? visible
+    : visible.filter(s => s.filteredCount === parseInt(activeCountFilter));
+
+  // DOM を finalVisible の順に並び替え、非表示行は末尾へ
+  const visibleNames = new Set(finalVisible.map(s => s.name));
+  finalVisible.forEach(({ row }) => rankingList.appendChild(row));
+  scored.forEach(({ row }) => {
+    if (!visibleNames.has(row.dataset.name)) {
+      row.classList.add('hidden');
+      rankingList.appendChild(row);
+    }
+  });
+
+  // ランク付けして表示
+  let displayRank = 1;
+  let prevCount = null;
+
+  finalVisible.forEach(({ row, filteredCount }, i) => {
+    if (filteredCount !== prevCount) displayRank = i + 1;
+    prevCount = filteredCount;
+
+    row.classList.remove('hidden', 'rank-1', 'rank-2', 'rank-3', 'rank-4');
+    row.classList.add(`rank-${Math.min(displayRank, 4)}`);
+
+    // ランク番号
+    const rankEl = row.querySelector('[data-rank]');
+    rankEl.textContent = displayRank;
+    rankEl.className = 'rank-num' + (displayRank <= 3 ? ` r${displayRank}` : '');
+
+    // メダル
+    row.querySelector('[data-medal]').textContent =
+      displayRank === 1 ? '🥇' : displayRank === 2 ? '🥈' : displayRank === 3 ? '🥉' : '';
+
+    // バー
+    const pct = Math.round((filteredCount / maxCount) * 100);
+    row.querySelector('[data-bar]').style.width = pct + '%';
+
+    // バッジ
+    const badge = row.querySelector('[data-badge]');
+    badge.textContent = filteredCount + '回';
+    const isMax = filteredCount === maxCount && maxCount > 1;
+    const isHigh = filteredCount === maxCount - 1 && maxCount > 2;
+    badge.className = 'count-badge' + (isMax ? ' c-max' : isHigh ? ' c-high' : '');
+
+    // ドットの active/inactive 更新
+    row.querySelectorAll('.dot[data-show]').forEach(dot => {
+      const sk = dot.dataset.show;
+      const inLive = allSongs[row.dataset.name].has(sk);
+      const inScope = activeLives.has(sk);
+      // 選択ライブ内で演奏 → 色付き、それ以外 → グレー
+      dot.className = 'dot ' + (inLive && inScope ? sk : 'inactive');
+    });
+  });
+
+  // 統計更新
+  document.getElementById('statSongs').textContent = finalVisible.length;
+  document.getElementById('statSelected').textContent = activeLives.size;
+
+  updateModeIndicator();
+}
+
+// 演奏回数ボタンを動的再生成
+let countBtnsBuilt = false;
+function rebuildCountButtons(counts) {
+  const ctrl = document.getElementById('countControls');
+
+  // 現在のボタンリストと一致していれば再生成しない
+  const existing = [...ctrl.querySelectorAll('.filter-btn')].slice(1).map(b => b.dataset.filter);
+  const same = existing.length === counts.length && counts.every((c, i) => c.toString() === existing[i]);
+  if (same && ctrl.children.length > 0) return;
+
+  ctrl.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'filter-btn' + (activeCountFilter === 'all' ? ' active' : '');
+  allBtn.dataset.filter = 'all';
+  allBtn.textContent = 'すべて';
+  allBtn.addEventListener('click', () => onCountFilter('all'));
+  ctrl.appendChild(allBtn);
+
+  counts.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (activeCountFilter === c.toString() ? ' active' : '');
+    btn.dataset.filter = c;
+    btn.textContent = c + '回';
+    btn.addEventListener('click', () => onCountFilter(c.toString()));
+    ctrl.appendChild(btn);
+  });
+}
+
+function onCountFilter(val) {
+  activeCountFilter = val;
+  document.querySelectorAll('#countControls .filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === val);
+  });
+  applyFilters();
+}
+
+function updateModeIndicator() {
+  const ind = document.getElementById('modeIndicator');
+  const parts = [];
+  if (activeLives.size < SHOWS.length) {
+    [...activeLives].forEach(k => {
+      const sh = SHOWS.find(s => s.key === k);
+      parts.push(`<span class="mode-tag" style="border-color:${sh.color};color:${sh.color}">${sh.label}</span>`);
+    });
+  }
+  if (activeCountFilter !== 'all') {
+    parts.push(`<span class="mode-tag">${activeCountFilter}回</span>`);
+  }
+  ind.innerHTML = parts.length ? '絞り込み中：' + parts.join(' ') : '';
+}
+
+// ライブボタンの色設定（Safariはattribute+classセレクタが不安定なのでインラインで管理）
+const LIVE_BTN_COLORS = {
+  'llr10-1':   { bg: '#e87ca8', text: '#ffffff' },
+  'llr10-2':   { bg: '#f7a8c4', text: '#1a0e2e' },
+  'llp249-1':  { bg: '#7ec8e3', text: '#0d1a2a' },
+  'llp249-2':  { bg: '#a8dff0', text: '#0d1a2a' },
+  'countdown': { bg: '#b96ddd', text: '#ffffff' },
+  'llp25':     { bg: '#f5c842', text: '#1a0e2e' },
+};
+
+function updateLiveButtonStyles() {
+  document.querySelectorAll('#liveControls .live-btn').forEach(function(btn) {
+    var key = btn.dataset.show;
+    var col = LIVE_BTN_COLORS[key];
+    if (activeLives.has(key)) {
+      btn.style.background = col.bg;
+      btn.style.borderColor = col.bg;
+      btn.style.color = col.text;
+      btn.style.fontWeight = '700';
+    } else {
+      btn.style.background = '#17121f';
+      btn.style.borderColor = '#2e2640';
+      btn.style.color = '#9e8fb0';
+      btn.style.fontWeight = '400';
+    }
+  });
+}
+
+function initButtons() {
+  document.querySelectorAll('#liveControls .live-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var key = btn.dataset.show;
+      if (activeLives.has(key)) {
+        if (activeLives.size === 1) return;
+        activeLives.delete(key);
+      } else {
+        activeLives.add(key);
+      }
+      updateLiveButtonStyles();
+      activeCountFilter = 'all';
+      applyFilters();
+    });
+  });
+
+  document.querySelectorAll('.legend-item[data-show]').forEach(function(item) {
+    item.addEventListener('click', function() {
+      var key = item.dataset.show;
+      var btn = document.querySelector('.live-btn[data-show="' + key + '"]');
+      if (btn) btn.click();
+    });
+  });
+
+  updateLiveButtonStyles();
+  applyFilters();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initButtons);
+} else {
+  initButtons();
+}
+</script>
+</body>
+</html>
