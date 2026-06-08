@@ -146,13 +146,18 @@
   .tooltip {
     position: fixed; background: #2a1e40; border: 1px solid var(--accent1);
     border-radius: 10px; padding: 10px 14px; font-size: 12px;
-    pointer-events: none; z-index: 999; max-width: 220px; display: none;
+    pointer-events: auto; z-index: 999; max-width: 220px; display: none;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   }
   .tooltip .tt-title { font-weight: 700; color: var(--accent1); margin-bottom: 6px; }
   .tooltip .tt-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--text-sub); }
   .tooltip .tt-row.hit { color: var(--text); }
   .tooltip .tt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .empty-msg {
+    text-align: center; color: var(--text-sub); font-size: 13px;
+    padding: 40px 20px; display: none;
+  }
 </style>
 </head>
 <body>
@@ -190,6 +195,7 @@
 <div class="mode-indicator" id="modeIndicator"></div>
 
 <div class="ranking-list" id="rankingList"></div>
+<div class="empty-msg" id="emptyMsg">ライブを選択すると曲が表示されます🎵</div>
 
 <div class="legend">
   <div class="legend-item" data-show="llr10-1"><div class="legend-dot" style="background:#e87ca8"></div>LLR10 10/3</div>
@@ -268,32 +274,82 @@ songEntries.forEach(({ name, allShows }) => {
     <div class="count-badge" data-badge></div>
   `;
 
-  // Tooltip
-  row.addEventListener('mouseenter', () => {
-    const lines = SHOWS.map(sh => {
-      const hit = allShows.has(sh.key);
-      const inScope = activeLives.has(sh.key);
-      const active = hit && inScope;
-      return `<div class="tt-row ${active ? 'hit' : ''}">
-        <div class="tt-dot" style="background:${active ? sh.color : '#3a2f50'}"></div>
-        ${sh.label}
-      </div>`;
-    }).join('');
-    tooltip.innerHTML = `<div class="tt-title">「${name}」</div>${lines}`;
-    tooltip.style.display = 'block';
+  // Tooltip（PC: hover、スマホ: tap）
+  var tooltipEl = document.getElementById('tooltip');
+
+  function buildTooltip(name, allShows) {
+    return '<div class="tt-title">「' + name + '」</div>' +
+      SHOWS.map(function(sh) {
+        var hit = allShows.has(sh.key);
+        var inScope = activeLives.has(sh.key);
+        var active = hit && inScope;
+        return '<div class="tt-row ' + (active ? 'hit' : '') + '">' +
+          '<div class="tt-dot" style="background:' + (active ? sh.color : '#3a2f50') + '"></div>' +
+          sh.label + '</div>';
+      }).join('');
+  }
+
+  var isTouchDevice = false;
+  row.addEventListener('touchstart', function() { isTouchDevice = true; }, { passive: true });
+
+  // タップで開閉（スマホ）
+  row.addEventListener('click', function(e) {
+    if (!isTouchDevice) return;
+    e.stopPropagation();
+    if (tooltipEl.dataset.openFor === name && tooltipEl.style.display === 'block') {
+      tooltipEl.style.display = 'none';
+      tooltipEl.dataset.openFor = '';
+    } else {
+      tooltipEl.innerHTML = buildTooltip(name, allShows);
+      var rect = row.getBoundingClientRect();
+      var top = rect.bottom + window.scrollY + 6;
+      var left = Math.min(rect.left, window.innerWidth - 230);
+      tooltipEl.style.position = 'absolute';
+      tooltipEl.style.left = left + 'px';
+      tooltipEl.style.top = top + 'px';
+      tooltipEl.style.display = 'block';
+      tooltipEl.dataset.openFor = name;
+    }
   });
-  row.addEventListener('mousemove', (e) => {
-    tooltip.style.left = (e.clientX + 14) + 'px';
-    tooltip.style.top = (e.clientY - 10) + 'px';
+
+  // hover（PC）
+  row.addEventListener('mouseenter', function(e) {
+    if (isTouchDevice) return;
+    tooltipEl.innerHTML = buildTooltip(name, allShows);
+    tooltipEl.style.position = 'fixed';
+    tooltipEl.style.display = 'block';
+    tooltipEl.dataset.openFor = name;
   });
-  row.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  row.addEventListener('mousemove', function(e) {
+    if (isTouchDevice) return;
+    tooltipEl.style.left = (e.clientX + 14) + 'px';
+    tooltipEl.style.top = (e.clientY - 10) + 'px';
+  });
+  row.addEventListener('mouseleave', function() {
+    if (isTouchDevice) return;
+    tooltipEl.style.display = 'none';
+    tooltipEl.dataset.openFor = '';
+  });
 
   rankingList.appendChild(row);
 });
 
 // ========== メインレンダリング ==========
 function applyFilters() {
-  const rows = [...rankingList.querySelectorAll('.song-row')];
+  var emptyMsg = document.getElementById('emptyMsg');
+  var rows = [...rankingList.querySelectorAll('.song-row')];
+
+  // 0選択時は全非表示
+  if (activeLives.size === 0) {
+    rows.forEach(function(row) { row.classList.add('hidden'); });
+    rebuildCountButtons([]);
+    emptyMsg.style.display = 'block';
+    document.getElementById('statSongs').textContent = '0';
+    document.getElementById('statSelected').textContent = '0';
+    updateModeIndicator();
+    return;
+  }
+  emptyMsg.style.display = 'none';
 
   // 選択ライブ内でのカウントを計算
   const scored = rows.map(row => {
@@ -463,7 +519,6 @@ function initButtons() {
     btn.addEventListener('click', function() {
       var key = btn.dataset.show;
       if (activeLives.has(key)) {
-        if (activeLives.size === 1) return;
         activeLives.delete(key);
       } else {
         activeLives.add(key);
@@ -481,6 +536,21 @@ function initButtons() {
       if (btn) btn.click();
     });
   });
+
+  // 背景タップ/クリックでtooltipを閉じる
+  var tooltipEl = document.getElementById('tooltip');
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.song-row') && !e.target.closest('.tooltip')) {
+      tooltipEl.style.display = 'none';
+      tooltipEl.dataset.openFor = '';
+    }
+  });
+  document.addEventListener('touchstart', function(e) {
+    if (!e.target.closest('.song-row') && !e.target.closest('.tooltip')) {
+      tooltipEl.style.display = 'none';
+      tooltipEl.dataset.openFor = '';
+    }
+  }, { passive: true });
 
   updateLiveButtonStyles();
   applyFilters();
