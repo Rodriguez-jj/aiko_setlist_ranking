@@ -160,6 +160,32 @@
     text-align: center; color: var(--text-sub); font-size: 13px;
     padding: 40px 20px; display: none;
   }
+
+  /* 検索 */
+  .search-wrap {
+    max-width: 720px; margin: 20px auto 0; padding: 0 12px;
+    position: relative;
+  }
+  .search-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 24px; padding: 11px 44px 11px 18px;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 14px;
+    color: var(--text); outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .search-input::placeholder { color: var(--text-sub); }
+  .search-input:focus { border-color: var(--accent1); }
+  .search-icon {
+    position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+    color: var(--text-sub); font-size: 16px; pointer-events: none;
+  }
+  .search-clear {
+    position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+    color: var(--text-sub); font-size: 18px; cursor: pointer;
+    background: none; border: none; display: none; line-height: 1; padding: 0;
+  }
+  .search-clear:hover { color: var(--accent1); }
+  .song-name mark { background: none; color: var(--accent1); font-weight: 900; }
 </style>
 </head>
 <body>
@@ -176,8 +202,14 @@
   <div class="stat-pill"><div class="num" id="statSelected">6</div><div class="lbl">選択中の公演数</div></div>
 </div>
 
-<!-- ライブ絞り込み -->
-<div class="section-label" style="margin-top:20px;">▸ ライブで絞り込む（複数選択可）</div>
+<!-- 検索 -->
+<div class="search-wrap">
+  <input class="search-input" id="searchInput" type="text" placeholder="🎵 曲名を検索...">
+  <span class="search-icon" id="searchIcon">🔍</span>
+  <button class="search-clear" id="searchClear">&#x2715;</button>
+</div>
+
+<div class="section-label" style="margin-top:20px;">&#9658; ライブで絞り込む（複数選択可）</div>
 <div class="controls" id="liveControls">
   <button class="filter-btn live-btn" data-show="llr10-1">LLR10 10/3</button>
   <button class="filter-btn live-btn" data-show="llr10-2">LLR10 2/4</button>
@@ -242,6 +274,7 @@ for (const [showKey, songs] of Object.entries(RAW)) {
 // 状態
 let activeLives = new Set(SHOWS.map(s => s.key)); // 初期は全選択
 let activeCountFilter = 'all';
+let searchQuery = '';
 
 // DOMキャッシュ
 const rankingList = document.getElementById('rankingList');
@@ -373,10 +406,13 @@ function applyFilters() {
   const countSet = new Set(visible.map(s => s.filteredCount));
   rebuildCountButtons([...countSet].sort((a, b) => b - a));
 
-  // countフィルター適用
-  const finalVisible = activeCountFilter === 'all'
-    ? visible
-    : visible.filter(s => s.filteredCount === parseInt(activeCountFilter));
+  // countフィルター＋検索フィルター適用
+  const q = searchQuery.trim();
+  const finalVisible = visible.filter(s => {
+    const passCount = activeCountFilter === 'all' || s.filteredCount === parseInt(activeCountFilter);
+    const passSearch = q === '' || s.name.includes(q);
+    return passCount && passSearch;
+  });
 
   // DOM を finalVisible の順に並び替え、非表示行は末尾へ
   const visibleNames = new Set(finalVisible.map(s => s.name));
@@ -407,6 +443,20 @@ function applyFilters() {
     // メダル
     row.querySelector('[data-medal]').textContent =
       displayRank === 1 ? '🥇' : displayRank === 2 ? '🥈' : displayRank === 3 ? '🥉' : '';
+
+    // 曲名（検索ワードをハイライト）
+    const nameEl = row.querySelector('.song-name');
+    if (q) {
+      const idx = row.dataset.name.indexOf(q);
+      if (idx >= 0) {
+        const before = row.dataset.name.slice(0, idx);
+        const match = row.dataset.name.slice(idx, idx + q.length);
+        const after = row.dataset.name.slice(idx + q.length);
+        nameEl.innerHTML = before + '<mark>' + match + '</mark>' + after;
+      }
+    } else {
+      nameEl.textContent = row.dataset.name;
+    }
 
     // バー
     const pct = Math.round((filteredCount / maxCount) * 100);
@@ -537,6 +587,26 @@ function initButtons() {
       var btn = document.querySelector('.live-btn[data-show="' + key + '"]');
       if (btn) btn.click();
     });
+  });
+
+  // 検索
+  var searchInput = document.getElementById('searchInput');
+  var searchClear = document.getElementById('searchClear');
+  var searchIcon  = document.getElementById('searchIcon');
+
+  searchInput.addEventListener('input', function() {
+    searchQuery = searchInput.value;
+    searchClear.style.display = searchQuery ? 'block' : 'none';
+    searchIcon.style.display  = searchQuery ? 'none'  : 'block';
+    applyFilters();
+  });
+  searchClear.addEventListener('click', function() {
+    searchInput.value = '';
+    searchQuery = '';
+    searchClear.style.display = 'none';
+    searchIcon.style.display  = 'block';
+    searchInput.focus();
+    applyFilters();
   });
 
   // 背景タップ/クリックでtooltipを閉じる
